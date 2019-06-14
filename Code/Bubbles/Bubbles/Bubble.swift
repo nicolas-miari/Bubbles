@@ -102,9 +102,17 @@ enum BubbleError: LocalizedError {
     case noWindow
 }
 
+// MARK: -
+
 private class BubbleCoordinator: UIViewController {
 
-    static let shared: BubbleCoordinator = BubbleCoordinator()
+    fileprivate static let shared: BubbleCoordinator = BubbleCoordinator()
+
+    private var animating: Bool = false
+
+    private var queue: [Bubble] = []
+
+    // MARK: - UIViewController
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -112,6 +120,10 @@ private class BubbleCoordinator: UIViewController {
     }
 
     func show(_ bubble: Bubble) throws {
+        guard !animating else {
+            queue.append(bubble)
+            return
+        }
         if view.superview == nil {
             guard let window = UIApplication.shared.windows.first else {
                 throw BubbleError.noWindow
@@ -124,6 +136,7 @@ private class BubbleCoordinator: UIViewController {
             view.rightAnchor.constraint(equalTo: window.rightAnchor).isActive = true
         }
 
+        self.animating = true
 
         // Place the new view off screen, just below the edge:
         view.addSubview(bubble)
@@ -151,9 +164,18 @@ private class BubbleCoordinator: UIViewController {
         view.subviews.forEach { (subview) in
             (subview as? Bubble)?.verticalConstraint.constant -= deltaY
         }
-        UIView.animate(withDuration: Bubble.globalPushDuration) {
-            bubble.alpha = 1.0
+
+        UIView.animate(withDuration: Bubble.globalPushDuration, animations: {
             self.view.layoutIfNeeded()
+        }, completion: {(_) in
+            self.animating = false
+            if self.queue.isEmpty == false {
+                let first = self.queue.remove(at: 0)
+                try? self.show(first)
+            }
+        })
+        UIView.animate(withDuration: 0.5) {
+            bubble.alpha = 1.0
         }
 
         /*
